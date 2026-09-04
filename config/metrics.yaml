@@ -1,8 +1,42 @@
-# Deterministic business metric definitions.
-# Fully populated in Phase 1.
+# Deterministic business metric definitions for TraceIQ.
+# The agent must use these definitions consistently across runs.
 
 sessions:
   definition: COUNT(DISTINCT website_session_id)
+  table: website_sessions
+  note: Always use DISTINCT on website_session_id. Never count after joining to pageviews without DISTINCT.
+
+orders:
+  definition: COUNT(DISTINCT order_id)
+  table: orders
 
 conversion_rate:
   definition: orders / sessions
+  note: Session-to-order conversion. Must use DISTINCT counts for both numerator and denominator. Valid range is 0 to 1.
+
+revenue:
+  definition: SUM(orders.price_usd)
+  table: orders
+  note: Order-level revenue. Prefer orders.price_usd over summing order_items unless item-level analysis is required.
+
+cogs:
+  definition: SUM(orders.cogs_usd)
+  table: orders
+
+gross_profit:
+  definition: revenue - cogs
+
+average_order_value:
+  definition: revenue / orders
+  note: Also called AOV.
+
+revenue_per_session:
+  definition: revenue / sessions
+
+refund_rate:
+  definition: COUNT(DISTINCT order_item_refunds.order_item_id) / COUNT(DISTINCT order_items.order_item_id)
+  note: Primary definition — item-level refund rate (share of order items that received a refund).
+
+refund_amount_rate:
+  definition: SUM(order_item_refunds.refund_amount_usd) / SUM(order_items.price_usd)
+  note: Secondary definition — dollar-level refund rate. Do not silently swap this with refund_rate.

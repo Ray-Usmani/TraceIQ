@@ -13,6 +13,7 @@ frontend/dist/
 # Data (never commit the 1.7M-row dataset)
 data/raw/*
 !data/raw/.gitkeep
+data/data_profile.json
 
 # Environment
 .env
@@ -23,3 +24,5 @@ data/raw/*
 *.swp
 .DS_Store
 Thumbs.db
+
+diagrams/

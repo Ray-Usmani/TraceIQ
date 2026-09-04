@@ -1,5 +1,5 @@
-# Business semantic layer — table and field descriptions.
-# Fully populated in Phase 1.
+# Business semantic layer — table and field descriptions for the Maven Fuzzy Factory dataset.
+# Consumed by the agent schema-context tool (Phase 2+).
 
 website_sessions:
   purpose: Individual visits to the ecommerce website.
@@ -7,3 +7,125 @@ website_sessions:
   important_fields:
     website_session_id:
       description: Unique session identifier.
+    user_id:
+      description: Website user (can have multiple sessions).
+    created_at:
+      description: Session start timestamp.
+    is_repeat_session:
+      description: 1 if the user visited before, 0 otherwise.
+    utm_source:
+      description: Acquisition source (e.g. gsearch, bsearch). NULL often means direct/organic.
+    utm_campaign:
+      description: Marketing campaign name.
+    utm_content:
+      description: Ad content identifier.
+    device_type:
+      description: User device category (desktop, mobile).
+    http_referer:
+      description: HTTP referer URL for the session.
+
+website_pageviews:
+  purpose: Individual page views within website sessions.
+  grain: one row per page view
+  important_fields:
+    website_pageview_id:
+      description: Unique pageview identifier.
+    created_at:
+      description: Pageview timestamp.
+    website_session_id:
+      description: Session that produced this pageview.
+    pageview_url:
+      description: URL path of the viewed page (funnel/page analysis).
+
+products:
+  purpose: Product catalog for the toy store.
+  grain: one row per product
+  important_fields:
+    product_id:
+      description: Unique product identifier.
+    created_at:
+      description: Product introduction / first-available timestamp.
+    product_name:
+      description: Human-readable product name.
+
+orders:
+  purpose: Completed orders placed through website sessions.
+  grain: one row per order
+  important_fields:
+    order_id:
+      description: Unique order identifier.
+    created_at:
+      description: Order placement timestamp.
+    website_session_id:
+      description: Session that produced the order (typically 0 or 1 order per session).
+    user_id:
+      description: User who placed the order.
+    primary_product_id:
+      description: Primary product on the order.
+    items_purchased:
+      description: Number of items in the order.
+    price_usd:
+      description: Order revenue in USD.
+    cogs_usd:
+      description: Cost of goods sold for the order in USD.
+
+order_items:
+  purpose: Line items within orders.
+  grain: one row per purchased item
+  important_fields:
+    order_item_id:
+      description: Unique order-item identifier.
+    created_at:
+      description: Item purchase timestamp.
+    order_id:
+      description: Parent order.
+    product_id:
+      description: Product purchased on this line.
+    is_primary_item:
+      description: 1 if this is the primary item on the order, else 0.
+    price_usd:
+      description: Line-item revenue in USD.
+    cogs_usd:
+      description: Line-item cost of goods sold in USD.
+
+order_item_refunds:
+  purpose: Refunds issued against order items.
+  grain: one row per refunded order item
+  important_fields:
+    order_item_refund_id:
+      description: Unique refund identifier.
+    created_at:
+      description: Refund timestamp.
+    order_item_id:
+      description: Refunded order item.
+    order_id:
+      description: Parent order of the refunded item.
+    refund_amount_usd:
+      description: Refund amount in USD.
+
+joins:
+  - from: website_sessions.website_session_id
+    to: website_pageviews.website_session_id
+    type: one-to-many
+    note: A session has one or more pageviews. Joining without care can inflate session counts.
+  - from: website_sessions.website_session_id
+    to: orders.website_session_id
+    type: one-to-zero-or-one
+    note: A session may produce zero or one order.
+  - from: orders.order_id
+    to: order_items.order_id
+    type: one-to-many
+    note: An order contains one or more line items.
+  - from: order_items.order_item_id
+    to: order_item_refunds.order_item_id
+    type: one-to-zero-or-one
+    note: An order item may or may not be refunded.
+  - from: products.product_id
+    to: order_items.product_id
+    type: one-to-many
+  - from: products.product_id
+    to: orders.primary_product_id
+    type: one-to-many
+  - from: orders.order_id
+    to: order_item_refunds.order_id
+    type: one-to-many

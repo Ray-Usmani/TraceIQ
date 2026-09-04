@@ -9,7 +9,9 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./database/init.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/02-schema.sql
+      - ./database/roles.sql:/docker-entrypoint-initdb.d/03-roles.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
@@ -21,12 +23,19 @@ services:
     ports:
       - "8000:8000"
     env_file: .env
+    environment:
+      DATA_RAW_DIR: /data/raw
+      DATA_DIR: /data
+      DATABASE_DIR: /database
     depends_on:
       postgres:
         condition: service_healthy
     volumes:
       - ./backend:/app
       - ./config:/config
+      - ./scripts:/app/scripts
+      - ./data:/data
+      - ./database:/database
 
   python-worker:
     build: ./python-worker

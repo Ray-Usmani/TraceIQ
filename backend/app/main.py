@@ -7,7 +7,9 @@ from collections.abc import AsyncIterator
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.analysis import router as analysis_router
 from app.api.health import router as health_router
+from app.llm.client import configure_langsmith
 
 logger = logging.getLogger(__name__)
 
@@ -16,6 +18,7 @@ logger = logging.getLogger(__name__)
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     """Application lifespan hooks."""
     logging.basicConfig(level=logging.INFO)
+    configure_langsmith()
     logger.info("TraceIQ backend started")
     yield
 
@@ -35,3 +38,4 @@ app.add_middleware(
 )
 
 app.include_router(health_router)
+app.include_router(analysis_router)
