@@ -1,0 +1,8 @@
+# Deterministic business metric definitions.
+# Fully populated in Phase 1.
+
+sessions:
+  definition: COUNT(DISTINCT website_session_id)
+
+conversion_rate:
+  definition: orders / sessions

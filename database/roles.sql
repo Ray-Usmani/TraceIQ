@@ -1,0 +1,2 @@
+-- PostgreSQL roles: analytics_admin and analytics_reader.
+-- Populated in Phase 1 (read-only agent SQL credentials).

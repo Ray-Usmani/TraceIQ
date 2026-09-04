@@ -1,0 +1,9 @@
+# Business semantic layer — table and field descriptions.
+# Fully populated in Phase 1.
+
+website_sessions:
+  purpose: Individual visits to the ecommerce website.
+  grain: one row per website session
+  important_fields:
+    website_session_id:
+      description: Unique session identifier.

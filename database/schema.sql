@@ -1,0 +1,2 @@
+-- Analytics and agent table definitions.
+-- Populated in Phase 1 (dataset schema + agent persistence tables).

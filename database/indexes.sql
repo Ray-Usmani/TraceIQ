@@ -1,0 +1,2 @@
+-- Indexes for expected investigation query patterns.
+-- Populated in Phase 1 (created_at, utm_*, session/order FKs, etc.).
