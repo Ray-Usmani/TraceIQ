@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import cast
 
 import sqlglot
 from sqlglot import exp
@@ -112,7 +113,7 @@ def validate(sql: str) -> ValidationResult:
             error="Multiple SQL statements are not allowed",
         )
 
-    expression = parsed[0]
+    expression = cast(exp.Expression, parsed[0])
 
     forbidden = _has_forbidden_nodes(expression)
     if forbidden:
@@ -143,7 +144,7 @@ def validate(sql: str) -> ValidationResult:
 
     try:
         normalized = expression.sql(dialect="postgres")
-    except Exception:  # noqa: BLE001
+    except Exception:  # noqa: BLE001 -- preserve executable SQL if normalization fails
         normalized = single
 
     return ValidationResult(

@@ -74,6 +74,42 @@ LANGCHAIN_API_KEY=           # leave empty to disable
 LANGCHAIN_PROJECT=TraceIQ
 ```
 
+## Phase 3 investigation API
+
+Create an asynchronous, SQL-only investigation:
+
+```bash
+curl -i -X POST http://localhost:8000/api/v1/analysis \
+  -H "Content-Type: application/json" \
+  -d '{"question":"Why did conversion decline in Q3 2014 compared with Q2 2014?"}'
+```
+
+The API returns `202 Accepted` with a process-local run ID:
+
+```json
+{
+  "run_id": "<uuid>",
+  "status": "queued",
+  "status_url": "/api/v1/analysis/<uuid>"
+}
+```
+
+Poll the returned path to inspect intake, the fixed investigation plan, the current
+step, completed steps, and inline SQL artifacts:
+
+```bash
+curl http://localhost:8000/api/v1/analysis/<uuid>
+```
+
+Possible terminal states are `completed`, `completed_with_errors`, `failed`, and
+`needs_clarification`. Phase 3 run state is held only in backend process memory,
+is lost on restart, and is not safe across multiple backend workers. PostgreSQL
+run and evidence persistence arrives in Phase 4.
+
 ## Status
 
-**Phase 2** — safe SQL analyst (schema context, SQLGlot validation, read-only execution, `POST /api/v1/analysis`).
+**Phase 3** — asynchronous investigation planner (structured intake, filtered
+semantic context, bounded SQL plan, sequential LangGraph execution, and polling).
+
+Python analysis, critic/replanning, final reporting, and frontend investigation
+views remain intentionally deferred to later phases.

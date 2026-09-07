@@ -30,11 +30,17 @@ def _load_prompt_template() -> str:
     return _PROMPT_PATH.read_text(encoding="utf-8")
 
 
-def _format_prompt(question: str, repair_context: str | None = None) -> str:
+def _format_prompt(
+    question: str,
+    repair_context: str | None = None,
+    *,
+    schema_context: str | None = None,
+    metric_context: str | None = None,
+) -> str:
     template = _load_prompt_template()
     prompt = template.format(
-        schema_context=load_schema_context(),
-        metrics_context=load_metrics_context(),
+        schema_context=schema_context or load_schema_context(),
+        metrics_context=metric_context or load_metrics_context(),
         question=question,
     )
     if repair_context:
@@ -107,7 +113,6 @@ def profile_result(columns: list[str], rows: list[dict[str, Any]]) -> list[Colum
             )
             continue
 
-        sample = non_null[0]
         if all(_is_number(v) for v in non_null):
             nums = [float(v) for v in non_null]
             profiles.append(
@@ -148,6 +153,7 @@ def _new_evidence_id() -> str:
 def _error_artifact(
     question: str,
     *,
+    step_id: str | None = None,
     sql: str = "",
     reason: str = "",
     error: str,
@@ -156,6 +162,7 @@ def _error_artifact(
 ) -> SqlArtifact:
     return SqlArtifact(
         evidence_id=_new_evidence_id(),
+        step_id=step_id,
         question=question,
         sql=sql,
         reason=reason,
@@ -170,10 +177,13 @@ def _success_artifact(
     sql: str,
     reason: str,
     query_result: QueryResult,
+    *,
+    step_id: str | None = None,
 ) -> SqlArtifact:
     profiles = profile_result(query_result.columns, query_result.rows)
     return SqlArtifact(
         evidence_id=_new_evidence_id(),
+        step_id=step_id,
         question=question,
         sql=sql,
         reason=reason,
@@ -189,14 +199,27 @@ def _success_artifact(
 def _generate_and_validate(
     question: str,
     repair_context: str | None = None,
+    *,
+    step_id: str | None = None,
+    schema_context: str | None = None,
+    metric_context: str | None = None,
 ) -> tuple[str, str, list[str]] | SqlArtifact:
     """Return (sql, reason, expected_columns) or an error artifact."""
-    prompt = _format_prompt(question, repair_context=repair_context)
+    prompt = _format_prompt(
+        question,
+        repair_context=repair_context,
+        schema_context=schema_context,
+        metric_context=metric_context,
+    )
     try:
         payload = _call_llm(prompt)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.exception("LLM SQL generation failed")
-        return _error_artifact(question, error=f"LLM generation failed: {exc}")
+        return _error_artifact(
+            question,
+            step_id=step_id,
+            error=f"LLM generation failed: {exc}",
+        )
 
     sql = (payload.get("sql") or "").strip()
     reason = (payload.get("reason") or "").strip()
@@ -207,6 +230,7 @@ def _generate_and_validate(
     if not sql:
         return _error_artifact(
             question,
+            step_id=step_id,
             reason=reason,
             error="LLM returned empty SQL",
         )
@@ -215,6 +239,7 @@ def _generate_and_validate(
     if not validation.valid:
         return _error_artifact(
             question,
+            step_id=step_id,
             sql=sql,
             reason=reason,
             error=f"SQL validation failed: {validation.error}",
@@ -223,7 +248,13 @@ def _generate_and_validate(
     return validation.sql, reason, [str(c) for c in expected_columns]
 
 
-def run_sql_analysis(question: str) -> SqlArtifact:
+def run_sql_analysis(
+    question: str,
+    *,
+    step_id: str | None = None,
+    schema_context: str | None = None,
+    metric_context: str | None = None,
+) -> SqlArtifact:
     """
     End-to-end Phase 2 pipeline:
 
@@ -234,9 +265,18 @@ def run_sql_analysis(question: str) -> SqlArtifact:
     settings = get_settings()
     question = question.strip()
     if not question:
-        return _error_artifact(question, error="Question must not be empty")
+        return _error_artifact(
+            question,
+            step_id=step_id,
+            error="Question must not be empty",
+        )
 
-    generated = _generate_and_validate(question)
+    generated = _generate_and_validate(
+        question,
+        step_id=step_id,
+        schema_context=schema_context,
+        metric_context=metric_context,
+    )
     if isinstance(generated, SqlArtifact):
         return generated
 
@@ -248,7 +288,13 @@ def run_sql_analysis(question: str) -> SqlArtifact:
         result = execute_readonly_query(sql)
         last_result = result
         if result.status == "success":
-            artifact = _success_artifact(question, sql, reason, result)
+            artifact = _success_artifact(
+                question,
+                sql,
+                reason,
+                result,
+                step_id=step_id,
+            )
             logger.info(
                 {
                     "node": "sql_tool",
@@ -275,7 +321,13 @@ def run_sql_analysis(question: str) -> SqlArtifact:
                 "error": result.error,
             }
         )
-        repaired = _generate_and_validate(question, repair_context=repair_context)
+        repaired = _generate_and_validate(
+            question,
+            repair_context=repair_context,
+            step_id=step_id,
+            schema_context=schema_context,
+            metric_context=metric_context,
+        )
         if isinstance(repaired, SqlArtifact):
             # Validation/LLM failed during repair — keep trying only if attempts remain.
             if attempts >= settings.sql_max_repair_attempts:
@@ -286,9 +338,14 @@ def run_sql_analysis(question: str) -> SqlArtifact:
     assert last_result is not None
     return _error_artifact(
         question,
+        step_id=step_id,
         sql=sql,
         reason=reason,
         error=last_result.error or "SQL execution failed",
-        status=last_result.status if last_result.status in {"error", "timeout"} else "error",
+        status=(
+            last_result.status
+            if last_result.status in {"error", "timeout"}
+            else "error"
+        ),
         execution_ms=last_result.execution_ms,
     )

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Collection
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -42,7 +43,7 @@ def _load_yaml(filename: str) -> dict[str, Any]:
     with path.open(encoding="utf-8") as f:
         data = yaml.safe_load(f) or {}
     if not isinstance(data, dict):
-        raise ValueError(f"{filename} must contain a mapping at the top level")
+        raise TypeError(f"{filename} must contain a mapping at the top level")
     return data
 
 
@@ -54,14 +55,33 @@ def load_metrics() -> dict[str, Any]:
     return _load_yaml("metrics.yaml")
 
 
-def load_schema_context() -> str:
+def available_table_names() -> list[str]:
+    """Return semantic-layer table names in their configured order."""
+    return [
+        name
+        for name, info in load_data_dictionary().items()
+        if name != "joins"
+        and isinstance(info, dict)
+        and ("purpose" in info or "grain" in info)
+    ]
+
+
+def available_metric_names() -> list[str]:
+    """Return configured business metric names in their configured order."""
+    return [name for name, info in load_metrics().items() if isinstance(info, dict)]
+
+
+def load_schema_context(table_names: Collection[str] | None = None) -> str:
     """Format the data dictionary as LLM-readable plain text."""
     data = load_data_dictionary()
+    selected = set(table_names) if table_names is not None else None
     lines: list[str] = ["## Tables", ""]
 
     joins = data.get("joins", [])
     for table_name, table_info in data.items():
         if table_name == "joins" or not isinstance(table_info, dict):
+            continue
+        if selected is not None and table_name not in selected:
             continue
         if "purpose" not in table_info and "grain" not in table_info:
             continue
@@ -93,6 +113,11 @@ def load_schema_context() -> str:
                 continue
             frm = join.get("from", "")
             to = join.get("to", "")
+            if selected is not None:
+                from_table = str(frm).split(".", maxsplit=1)[0]
+                to_table = str(to).split(".", maxsplit=1)[0]
+                if from_table not in selected or to_table not in selected:
+                    continue
             jtype = join.get("type", "")
             note = join.get("note", "")
             line = f"  {frm} -> {to} ({jtype})"
@@ -104,13 +129,16 @@ def load_schema_context() -> str:
     return "\n".join(lines).strip() + "\n"
 
 
-def load_metrics_context() -> str:
+def load_metrics_context(metric_names: Collection[str] | None = None) -> str:
     """Format the metrics dictionary as LLM-readable plain text."""
     data = load_metrics()
+    selected = set(metric_names) if metric_names is not None else None
     lines: list[str] = ["## Business Metrics", ""]
 
     for name, info in data.items():
         if not isinstance(info, dict):
+            continue
+        if selected is not None and name not in selected:
             continue
         definition = info.get("definition", "")
         note = info.get("note", "")

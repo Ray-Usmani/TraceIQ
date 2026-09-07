@@ -39,13 +39,12 @@ def test_readonly_query_counts_products() -> None:
 
 @pytest.mark.integration
 def test_readonly_session_rejects_writes() -> None:
-    with pytest.raises(SQLAlchemyError):
-        with reader_engine.connect() as conn:
-            conn.execute(
-                text(
-                    "INSERT INTO analytics.products "
-                    "(product_id, created_at, product_name) "
-                    "VALUES (-999, NOW(), 'should_fail')"
-                )
+    with pytest.raises(SQLAlchemyError), reader_engine.connect() as conn:
+        conn.execute(
+            text(
+                "INSERT INTO analytics.products "
+                "(product_id, created_at, product_name) "
+                "VALUES (-999, NOW(), 'should_fail')"
             )
-            conn.commit()
+        )
+        conn.commit()

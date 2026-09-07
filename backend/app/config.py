@@ -2,6 +2,7 @@
 
 from functools import lru_cache
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -46,6 +47,11 @@ class Settings(BaseSettings):
     sql_statement_timeout_ms: int = 15000
     sql_max_rows: int = 5000
     sql_max_repair_attempts: int = 2
+
+    analysis_max_steps: int = Field(default=8, ge=2, le=8)
+    analysis_max_active_runs: int = Field(default=4, ge=1)
+    analysis_run_cache_size: int = Field(default=100, ge=1)
+    structured_output_max_attempts: int = Field(default=2, ge=1, le=3)
 
     config_dir: str = "/config"
 

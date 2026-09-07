@@ -20,8 +20,10 @@ from app.agent.tools.sql_validator import validate
         )
         SELECT * FROM monthly ORDER BY month
         """,
-        "SELECT o.order_id, p.product_name FROM analytics.orders o "
-        "JOIN analytics.products p ON o.primary_product_id = p.product_id LIMIT 5",
+        (
+            "SELECT o.order_id, p.product_name FROM analytics.orders o "
+            "JOIN analytics.products p ON o.primary_product_id = p.product_id LIMIT 5"
+        ),
     ],
 )
 def test_allows_select_and_cte(sql: str) -> None:
